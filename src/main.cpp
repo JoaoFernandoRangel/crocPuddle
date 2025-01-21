@@ -14,9 +14,6 @@ WiFiUDP _ntpUDP;
 NTPClient _timeClient(_ntpUDP, "pool.ntp.org", -10800);
 #define SerialDebug Serial
 
-#define echoPin 33  // attach pin D3 Arduino to pin Echo of JSN-SR04T
-#define trigPin 32  // attach pin D2 Arduino to pin Trig of JSN-SR04T
-
 // Task handles
 TaskHandle_t sensorTaskHandle;
 TaskHandle_t serialTaskHandle;
@@ -69,7 +66,7 @@ void readSensorTask(void *parameter) {
     while (1) {
         unsigned long readSensortick = millis();
         readLevel(t[0], waterLevelRead);
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
     // Delay for stability
 }
