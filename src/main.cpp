@@ -29,6 +29,8 @@ void readLevel(unsigned long &t, float &distOld);
 std::string payloadBuilder(float lvl, String timeStamp, bool debug = false);
 void reconnectMQTT();
 bool connectToWifi();
+void manageMQTT();
+void manageWiFi();
 void getWifiData(bool serial, int index);
 float waterLevelRead = 0, waterLevelOld = 0;
 unsigned long t[5];
@@ -77,24 +79,42 @@ void mqttTask(void *parameter) {
     _timeClient.begin();
     _timeClient.update();
     manageMQTT();
+    float teste[5];
+    teste[0] = 0.0;
     while (true) {
-        if (!(WiFi.status() == WL_CONNECTED)) {
-            digitalWrite(WiFi_LED, LOW);
-            connectToWifi();
-        } else {
-            digitalWrite(WiFi_LED, HIGH);
-        }
+        manageWiFi();
         if (!_mqtt.connected()) {
             manageMQTT();
         } else {
             _mqtt.loop();
             _timeClient.update();
-            if (checkDiff(waterLevelOld, waterLevelRead) || (millis() - t[1] > retornaSegundo(30))) {
-                _mqtt.publish("v1/devices/me/telemetry", payloadBuilder(waterLevelOld, _timeClient.getFormattedTime(), true).c_str());
+            if (millis() - t[1] > retornaSegundo(30)) {
+                Serial.printf("Valor de nível: %f\n", teste[0]);
+                _mqtt.publish("v1/devices/me/telemetry", payloadBuilder(teste[0], _timeClient.getFormattedTime(), true).c_str());
+                // Gera um valor aleatório de ponto flutuante entre 1.0 e 5.0
+                float randomFloat = 1.0 + static_cast<float>(esp_random() % 4000) / 1000.0;
+                // Incrementa teste[0]
+                teste[0] += (5.0 + randomFloat);
+                // Reseta se ultrapassar 100
+                if (teste[0] > 100.0) {
+                    teste[0] = 0.0;
+                }
                 t[1] = millis();
             }
-            vTaskDelay(pdMS_TO_TICKS(50));  // Pequeno delay para não ocupar 100% da CPU
+            // if (checkDiff(waterLevelOld, waterLevelRead) || (millis() - t[1] > retornaSegundo(30))) {
+            //     _mqtt.publish("v1/devices/me/telemetry", payloadBuilder(waterLevelOld, _timeClient.getFormattedTime(), true).c_str());
+            //     t[1] = millis();
         }
+        vTaskDelay(pdMS_TO_TICKS(50));  // Pequeno delay para não ocupar 100% da CPU
+    }
+}
+
+void manageWiFi() {
+    if (WiFi.status() != WL_CONNECTED) {
+        connectToWifi();
+        digitalWrite(WiFi_LED, LOW);  // Acende LED WiFi indicando desconexão
+    } else {
+        digitalWrite(WiFi_LED, HIGH);  // Acende LED WiFi indicando conexão
     }
 }
 
