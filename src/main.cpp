@@ -25,7 +25,7 @@ const char *mqtt_server = "demo.thingsboard.io";
 
 void mqttTask(void *parameter);
 void readSensorTask(void *parameter);
-void readLevel(unsigned long &t, float &distOld);
+void readLevel(unsigned long &t, float &distOld, bool &b);
 std::string payloadBuilder(float lvl, String timeStamp, bool debug = false);
 void reconnectMQTT();
 bool connectToWifi();
@@ -34,6 +34,9 @@ void manageWiFi();
 void getWifiData(bool serial, int index);
 float waterLevelRead = 0, waterLevelOld = 0;
 unsigned long t[5];
+bool newValue;
+float inMin = 20.0, inMax = 110.0;
+
 void setup() {
     Serial.begin(115200);
     // Criação das tasks
@@ -67,7 +70,7 @@ void readSensorTask(void *parameter) {
     pinMode(echoPin, INPUT);
     while (1) {
         unsigned long readSensortick = millis();
-        readLevel(t[0], waterLevelRead);
+        readLevel(t[0], waterLevelRead, newValue);
         vTaskDelay(pdMS_TO_TICKS(50));
     }
     // Delay for stability
@@ -88,22 +91,12 @@ void mqttTask(void *parameter) {
         } else {
             _mqtt.loop();
             _timeClient.update();
-            if (millis() - t[1] > retornaSegundo(30)) {
-                Serial.printf("Valor de nível: %f\n", teste[0]);
-                _mqtt.publish("v1/devices/me/telemetry", payloadBuilder(teste[0], _timeClient.getFormattedTime(), true).c_str());
-                // Gera um valor aleatório de ponto flutuante entre 1.0 e 5.0
-                float randomFloat = 1.0 + static_cast<float>(esp_random() % 4000) / 1000.0;
-                // Incrementa teste[0]
-                teste[0] += (5.0 + randomFloat);
-                // Reseta se ultrapassar 100
-                if (teste[0] > 100.0) {
-                    teste[0] = 0.0;
+            if (millis() - t[1] > retornaSegundo(30) || newValue) {
+                if (_mqtt.publish("v1/devices/me/telemetry", payloadBuilder(waterLevelRead, _timeClient.getFormattedTime(), true).c_str())) {
+                    newValue = false;
+                    t[1] = millis();
                 }
-                t[1] = millis();
             }
-            // if (checkDiff(waterLevelOld, waterLevelRead) || (millis() - t[1] > retornaSegundo(30))) {
-            //     _mqtt.publish("v1/devices/me/telemetry", payloadBuilder(waterLevelOld, _timeClient.getFormattedTime(), true).c_str());
-            //     t[1] = millis();
         }
         vTaskDelay(pdMS_TO_TICKS(50));  // Pequeno delay para não ocupar 100% da CPU
     }
@@ -118,23 +111,27 @@ void manageWiFi() {
     }
 }
 
-void readLevel(unsigned long &t, float &distOld) {
+void readLevel(unsigned long &t, float &distOld, bool &b) {
     unsigned long dur;
     float distNew;
-    if (millis() - t > 10000) {
+    if (millis() - t > 2000) {
         // Clears the trigPin condition
         digitalWrite(trigPin, LOW);
-        delayMicroseconds(2);
+        delayMicroseconds(5);
         // Sets the trigPin HIGH (ACTIVE) for 1500 microseconds
         digitalWrite(trigPin, HIGH);
-        delayMicroseconds(1500);
+        delayMicroseconds(10);
         digitalWrite(trigPin, LOW);
         // Reads the echoPin, returns the sound wave travel time in microseconds
         dur = pulseIn(echoPin, HIGH);
         // Calculating the distance
         distNew = dur * 0.034 / 2;  // Speed of sound wave divided by 2 (go and back)
         if (distNew != distOld) {
-            distOld = distNew;
+            if (abs(abs(distNew) - abs(distOld)) > 2.0) {
+                distOld = distNew;
+                b = true;
+                Serial.printf("Valor lido em cm: %.2f\n", distOld);
+            }
         }
         t = millis();
     }
@@ -142,7 +139,9 @@ void readLevel(unsigned long &t, float &distOld) {
 
 std::string payloadBuilder(float lvl, String timeStamp, bool debug) {
     cJSON *json = cJSON_CreateObject();
-    cJSON_AddNumberToObject(json, "nivel", lvl);
+    float nivel = map(lvl, inMin, inMax, 100.0, 0.0);
+    cJSON_AddNumberToObject(json, "valor_bruto", lvl);
+    cJSON_AddNumberToObject(json, "nivel", nivel);
     cJSON_AddStringToObject(json, "timeStamp", timeStamp.c_str());
     char *jsonString = cJSON_PrintUnformatted(json);
     if (debug) {

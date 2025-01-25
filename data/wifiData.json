@@ -1,8 +1,9 @@
 {
   "networks": [
-    { "SSID": "Bia 2", "PWD": "coisafacil" },
-    { "SSID": "SITIO_NEWNET", "PWD": "coisafacil" },
     { "SSID": "Escritorio", "PWD": "cs2017cs3337" },
+    { "SSID": "SITIO_NEWNET", "PWD": "coisafacil" },
+    { "SSID": "Bia 2", "PWD": "coisafacil" },
+    { "SSID": "Bia", "PWD": "coisafacil" },
     { "SSID": "CS_TELECOM_CS96", "PWD": "cs2017cs3337" },
     { "SSID": "S23", "PWD": "bemvindo" },
     { "SSID": "REDE", "PWD": "12345678a" },
